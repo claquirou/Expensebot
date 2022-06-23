@@ -1,0 +1,9 @@
+{
+    "REVENU": "Cette options vous permet d'ajouter vos **revenus**.\nEcrivez juste la somme💰!",
+
+    "DEPENSE": "Cette option vous permet d'écrire vos **dépenses**.\nEcrivez d'abord la **somme**💶 et après le **motif**🧾.",
+
+    "END": "Merci d'avoir utilisé notre service 😉.\nPour afficher les options, appuyez sur **/options**✅.",
+
+    "FORMAT": "**Format incorrect !**\nVous avez fait une erreur, écrivez le montant suivi du motif de somme.\n\n__Exemple: 400000 Retour sur investissement__"
+}
