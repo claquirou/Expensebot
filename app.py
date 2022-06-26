@@ -7,11 +7,11 @@ from telethon import Button, TelegramClient, events
 from telethon.errors import AlreadyInConversationError
 
 from db import Databases
-from crendential import ADMIN_ID, API_ID, API_HASH, TOKEN
+from credential import ADMIN_ID, API_ID, API_HASH, TOKEN
 
 
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(filename="file.log" ,level=logging.DEBUG,
                     format='%(name)s- %(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -42,25 +42,28 @@ async def option(event):
         return
 
     keyboard = [
-        [Button.inline("REVENUS💵", b"1"),
-         Button.inline("DEPENSES🛍", b"2")],
+        [Button.inline("REVENUS 💵", b"1"),
+         Button.inline("DEPENSES 🛍", b"2")],
+         [Button.inline("MODIFIER ✅", b"3"),
+         Button.inline("SUPPRIMER 🗑", b"4")],
+         [Button.inline("TOTALS 💰", b"5")]
     ]
 
     await client.send_message(ADMIN_ID, "Choississez une option:", buttons=keyboard)
 
 
 
-@client.on(events.NewMessage(pattern="/totals"))
-async def totals(event):
-    if event.chat_id != ADMIN_ID:
+async def totals(chat_id, event):
+    if chat_id != ADMIN_ID:
         return
         
     d = Databases()
+    await typing_action(chat_id)
+
     revenu = "REVENUS:      __{:,} XOF__".format(d.get_income_expense('revenus'))
     depense = "DEPENSES:    __{:,} XOF__".format(d.get_income_expense('depenses'))
     solde = "SOLDE:       __{:,} XOF__".format(d.last_value('balance'))
-
-    await typing_action(event.chat_id)
+    
     await event.respond(f"RECAPITULATIF\n\n{revenu}\n{depense}\n{solde}")
     logger.info(f"----> LE TOTAL DES DONNÉS A ÉTÉ DEMANDÉ")
 
@@ -76,6 +79,20 @@ async def button(event):
     elif event.data == b"2":
         await event.delete()
         await user_conversation(chat_id=ADMIN_ID, tips=get_tip("DEPENSE"), earn=False)
+    
+    elif event.data == b"3":
+        await event.delete()
+        await update_table(chat_id=ADMIN_ID, tips=get_tip("UPDATE"))
+
+    
+    elif event.data == b"4":
+        pass
+
+
+    elif event.data == b"5":
+        await event.delete()
+        await totals(chat_id=ADMIN_ID, event=event)
+
 
     raise events.StopPropagation
 
@@ -116,7 +133,7 @@ async def user_conversation(chat_id, tips, earn):
                 await conv.send_message("Conversation terminée 🔚!\n\nPour afficher les options appuyez sur **/options**.")
 
     except AlreadyInConversationError:
-        await client.send_message(chat_id, "Terminer la conversation avant de choisir d'autre options.")  # type: ignore
+        await client.send_message(chat_id, "Veuillez terminer la conversation avant de choisir d'autre options.")  # type: ignore
 
 
 
@@ -131,7 +148,7 @@ async def add_data(conv, day, hour, response, save=False):
         # Forcer l'utilisateur à écrire plus de 3 mots.
         if description.count("") > 3:
 
-            # Si save --> True alors l'utilisateur enregistre ses revenus.
+            # if save --> True alors l'utilisateur enregistre ses revenus.
             if save:
                 balance = int(amount) + d.last_value('balance')
                 d.save_data(date=day, hour=hour, income=amount, description=description, balance=balance)
@@ -151,6 +168,64 @@ async def add_data(conv, day, hour, response, save=False):
     except ValueError:
         await conv.send_message(get_tip("FORMAT"))
         logger.info(f"---> LA VALEUR ENTRÉ NE CORRESPOND PAS AVEC LE FORMAT DONNÉ.")
+
+
+
+async def update_table(chat_id, tips):
+    if chat_id != ADMIN_ID:
+        return
+    
+    try:
+        async with client.conversation(chat_id, timeout=125) as conv:
+            await conv.send_message(tips, parse_mode='md')
+
+            try:
+                continue_conv = True
+
+                while continue_conv:
+                    response = conv.get_response()
+                    response = await response
+
+                    if response.raw_text != "/end":
+                        d = Databases()
+                        column = d.column
+                        answer = response.raw_text.split()
+                        
+                        try:
+                            # Get all colums index to update 
+                            find_index = [answer.index(w) for w in answer if w.lower() in column]
+                            
+                            # Get the text of the value to be updated
+                            row = answer[find_index[0]]
+                            new_value = " ".join(answer[find_index[0]+1: find_index[1]])
+                            row_index = answer[find_index[1]]
+                            row_value = " ".join(answer[find_index[1]+1:])
+
+                            # Convert users input to match table colums in database
+                            d.update_value(row=row.lower(), new_value=new_value, row_index=row_index.lower(), row_value=row_value)
+
+                            await typing_action(chat_id, period=1)
+                            await conv.send_message("Modification effectué avec succès...")
+
+                            logger.info(f"----------> MODIFICATION: {row.lower()} *** {new_value} *** {row_index.lower()} *** {row_value} *** .")
+
+                        except IndexError:
+                            column = " - ".join(column)
+                            await conv.send_message(f"Veuillez suivre le format correct et verifiez l'orthographe des colonnes. Voici la liste des colonnes:\n\n{column}")
+
+                            logger.info(f"---> LA VALEUR ENTRÉ NE CORRESPOND PAS AVEC LE FORMAT DONNÉ.")
+
+                    else:
+                        await conv.send_message(get_tip("END"))
+                        continue_conv = False
+
+            except asyncio.TimeoutError:
+                await conv.send_message("Conversation terminée 🔚!\n\nPour afficher les options appuyez sur **/options**.")
+
+
+    except AlreadyInConversationError:
+        await client.send_message(chat_id, "Veuillez terminer la conversation avant de choisir d'autre options.")  # type: ignore
+
 
 
 

@@ -1,5 +1,7 @@
+from hashlib import new
 import psycopg2
-from crendential import DATABASE_URL
+import psycopg2.errors
+from credential import DATABASE_URL
 
 
 class Databases:
@@ -7,6 +9,10 @@ class Databases:
         self.conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         self.cursor = self.conn.cursor()
         self._create_table()
+        
+        self.column = self._get_columns()
+        
+        
 
     def _create_table(self):
         self.cursor.execute(
@@ -21,16 +27,25 @@ class Databases:
         """
         )
         
+    def _get_columns(self):
+        self.cursor.execute("Select * FROM juin LIMIT 0")
+        colnames = [desc[0] for desc in self.cursor.description]
+        return colnames
 
     def save_data(self, date, hour, income=None, expense=None, description="", balance=0):
         self.cursor.execute('INSERT INTO juin (date, heure, revenus, depenses, description, balance) VALUES (%s, %s, %s, %s, %s, %s)', (date, hour, income, expense, description, balance))
 
         self.commit_data()
 
-    # def update_value(self):
-    #     self.cursor.execute("UPDATE juin SET {row} = () WHERE {row} = ()")
+    def update_value(self, row:str, new_value:str, row_index: str, row_value):
+        
+        if row.lower() == "description":
+            new_value = f"{new_value.upper()} --> UPDATED"
 
-    #     self.commit_data()
+        self.cursor.execute(f"UPDATE juin SET {row.lower()} = '{new_value}' WHERE {row_index.lower()} = '{row_value}'")
+        
+        self.commit_data()
+
 
     def last_value(self, row: str):
         self.cursor.execute(f"SELECT {row.lower()} from juin")
@@ -54,7 +69,5 @@ class Databases:
 if __name__ == "__main__":
     d = Databases() 
 
-    print(d.last_value("revenus"))
-    print(d.last_value("depenses"))
-    print(d.last_value("description"))
-    print(d.last_value("balance"))
+    # d.update_value("description", "Yango taxi", "heure", "15:42:59")
+    # print(d.column)

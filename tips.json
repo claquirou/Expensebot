@@ -3,7 +3,9 @@
 
     "DEPENSE": "Cette option vous permet d'écrire vos **dépenses**.\nEcrivez d'abord la **somme**💶 et après le **motif**🧾.",
 
-    "END": "Merci d'avoir utilisé notre service 😉.\nPour afficher les options, appuyez sur **/options**✅.",
+    "END": "Merci d'avoir utilisé notre service 😉.\nPour afficher les options, appuyez sur **/options**✅ et pour des modifications appuyez sur **/update**.",
 
-    "FORMAT": "**Format incorrect !**\nVous avez fait une erreur, écrivez le montant suivi du motif de somme.\n\n__Exemple: 400000 Retour sur investissement__"
+    "FORMAT": "**Format incorrect !**\nVous avez fait une erreur, écrivez le montant suivi du motif de somme.\n\n__Exemple: 400000 Retour sur investissement__",
+
+    "UPDATE": "Pour modifier une valeur, suivez l'exemple donnée et faite attention à votre orthographe."
 }

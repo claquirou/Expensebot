@@ -7,6 +7,15 @@ __pycache__/
 # C extensions
 *.so
 
+
+#localhost
+file.log
+token.ini
+zhost.py
+
+
+
+
 # Distribution / packaging
 .Python
 build/
@@ -81,6 +90,8 @@ target/
 profile_default/
 ipython_config.py
 
+
+
 # pyenv
 .python-version
 
@@ -108,7 +119,6 @@ ENV/
 env.bak/
 venv.bak/
 
-token.ini
 
 # Spyder project settings
 .spyderproject
