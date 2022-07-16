@@ -7,5 +7,18 @@
 
     "FORMAT": "**Format incorrect !**\nVous avez fait une erreur, écrivez le montant suivi du motif de somme.\n\n__Exemple: 400000 Retour sur investissement__",
 
-    "UPDATE": "Pour modifier une valeur, suivez l'exemple donnée et faite attention à votre orthographe."
+    "UPDATE": "Pour modifier une valeur, suivez l'exemple donnée et faite attention à votre orthographe.",
+
+    "NEW_MONTH": "Vos revenus et dépenses seront enregistrés pour le mois\n\nPour afficher les options appuyez sur **/options**.",
+
+
+
+    "TIMEOUT_ERROR": "Conversation terminée 🔚!\n\nPour afficher les options appuyez sur **/options**.",
+
+    "CONVERSATION_ERROR": "Veuillez terminer la conversation avant de choisir d'autre options.",
+
+    "INDEX_ERROR": "Veuillez suivre le format correct et verifiez l'orthographe des colonnes. Voici la liste des colonnes",
+
+    "FORMAT_ERROR" : "LA VALEUR ENTRÉE NE CORRESPOND PAS AVEC LE FORMAT PAR DEFAUT."
+
 }

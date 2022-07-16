@@ -6,18 +6,20 @@ from time import gmtime, strftime
 from telethon import Button, TelegramClient, events
 from telethon.errors import AlreadyInConversationError
 
+import init_db
 from db import Databases
 from credential import ADMIN_ID, API_ID, API_HASH, TOKEN
 
-
-
-logging.basicConfig(filename="file.log" ,level=logging.DEBUG,
+logging.basicConfig(filename="file.log", level=logging.DEBUG,
                     format='%(name)s- %(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
 client = TelegramClient(None, int(API_ID), API_HASH).start(bot_token=TOKEN)  # type: ignore
+
+
+MONTH = ["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre"]
+
 
 
 def get_tip(tips):
@@ -25,6 +27,7 @@ def get_tip(tips):
         data = json.load(f)
 
     return data.get(tips)
+
 
 async def typing_action(chat_id, chat_action="typing", period=2):
     async with client.action(chat_id, chat_action):  # type: ignore
@@ -44,63 +47,62 @@ async def option(event):
     keyboard = [
         [Button.inline("REVENUS 💵", b"1"),
          Button.inline("DEPENSES 🛍", b"2")],
-         [Button.inline("MODIFIER ✅", b"3"),
+        [Button.inline("MODIFIER ✅", b"3"),
          Button.inline("SUPPRIMER 🗑", b"4")],
-         [Button.inline("TOTALS 💰", b"5")]
+        [Button.inline("TOTALS 💰", b"5")]
     ]
 
     await client.send_message(ADMIN_ID, "Choississez une option:", buttons=keyboard)
 
 
+@client.on(events.NewMessage(pattern="/newMonth"))
+async def new_month(event):
+    if event.chat_id != ADMIN_ID:
+        return
+
+    await user_conversation(chat_id=event.chat_id, tips="Ecrivez le nom du nouveau mois.", earn="month")
+
 
 async def totals(chat_id, event):
     if chat_id != ADMIN_ID:
         return
-        
+
     d = Databases()
     await typing_action(chat_id)
 
     revenu = "REVENUS:      __{:,} XOF__".format(d.get_income_expense('revenus'))
     depense = "DEPENSES:    __{:,} XOF__".format(d.get_income_expense('depenses'))
     solde = "SOLDE:       __{:,} XOF__".format(d.last_value('balance'))
-    
+
     await event.respond(f"RECAPITULATIF\n\n{revenu}\n{depense}\n{solde}")
     logger.info(f"----> LE TOTAL DES DONNÉS A ÉTÉ DEMANDÉ")
 
 
-
 @client.on(events.CallbackQuery())
 async def button(event):
-
     if event.data == b"1":
         await event.delete()
-        await user_conversation(chat_id=ADMIN_ID, tips=get_tip("REVENU"), earn=True)
+        await user_conversation(chat_id=ADMIN_ID, tips=get_tip("REVENU"), earn="yes")
 
     elif event.data == b"2":
         await event.delete()
-        await user_conversation(chat_id=ADMIN_ID, tips=get_tip("DEPENSE"), earn=False)
-    
+        await user_conversation(chat_id=ADMIN_ID, tips=get_tip("DEPENSE"), earn="no")
+
     elif event.data == b"3":
         await event.delete()
         await update_table(chat_id=ADMIN_ID, tips=get_tip("UPDATE"))
 
-    
     elif event.data == b"4":
         pass
-
 
     elif event.data == b"5":
         await event.delete()
         await totals(chat_id=ADMIN_ID, event=event)
 
-
     raise events.StopPropagation
 
 
-
-
 async def user_conversation(chat_id, tips, earn):
-
     try:
         async with client.conversation(chat_id, timeout=60) as conv:
             await conv.send_message(tips, parse_mode='md')
@@ -116,7 +118,20 @@ async def user_conversation(chat_id, tips, earn):
                         day = strftime("%d-%m-%Y", gmtime())
                         hour = strftime("%H:%M:%S", gmtime())
 
-                        if earn:
+                        if earn == "month":
+                            response = str(response.raw_text)
+                            if response.lower() in MONTH:
+                                init_db.add_month(response.lower())
+                                await typing_action(chat_id)
+                                await conv.send_message(f"{get_tip('NEW_MONTH')} {response.upper()}.")
+                                logger.info(f"-----> NOUVEAU MOIS AJOUTÉ: {response.upper()}")
+                                return
+
+                            else:
+                                await typing_action(chat_id)
+                                await conv.send_message("Ecrivez le nom du mois correct svp...")
+
+                        elif earn == "yes":
                             await typing_action(chat_id)
                             await add_data(conv, day, hour, response, save=True)
 
@@ -130,19 +145,17 @@ async def user_conversation(chat_id, tips, earn):
 
             except asyncio.TimeoutError:
                 await typing_action(chat_id)
-                await conv.send_message("Conversation terminée 🔚!\n\nPour afficher les options appuyez sur **/options**.")
+                await conv.send_message(get_tip("TIMEOUT_ERROR"))
 
     except AlreadyInConversationError:
-        await client.send_message(chat_id, "Veuillez terminer la conversation avant de choisir d'autre options.")  # type: ignore
-
-
+        await client.send_message(chat_id, get_tip("CONVERSATION_ERROR"))  # type: ignore
 
 
 async def add_data(conv, day, hour, response, save=False):
-    msg = str(response.raw_text).split()
+    msg = response.split()
     amount = msg[0]
     description = " ".join(msg[1:]).upper()
-    
+
     try:
         d = Databases()
         # Forcer l'utilisateur à écrire plus de 3 mots.
@@ -164,17 +177,16 @@ async def add_data(conv, day, hour, response, save=False):
 
         else:
             await conv.send_message(get_tip("FORMAT"))
-            logger.info(f"---> LA VALEUR ENTRÉ NE CORRESPOND PAS AVEC LE FORMAT DONNÉ.")
+            logger.info(f"---> {get_tip('FORMAT_ERROR')}")
     except ValueError:
         await conv.send_message(get_tip("FORMAT"))
-        logger.info(f"---> LA VALEUR ENTRÉ NE CORRESPOND PAS AVEC LE FORMAT DONNÉ.")
-
+        logger.info(f"---> {get_tip('FORMAT_ERROR')}")
 
 
 async def update_table(chat_id, tips):
     if chat_id != ADMIN_ID:
         return
-    
+
     try:
         async with client.conversation(chat_id, timeout=125) as conv:
             await conv.send_message(tips, parse_mode='md')
@@ -190,19 +202,20 @@ async def update_table(chat_id, tips):
                         d = Databases()
                         column = d.column
                         answer = response.raw_text.split()
-                        
+
                         try:
-                            # Get all colums index to update 
+                            # Get all columns index to update
                             find_index = [answer.index(w) for w in answer if w.lower() in column]
-                            
+
                             # Get the text of the value to be updated
                             row = answer[find_index[0]]
-                            new_value = " ".join(answer[find_index[0]+1: find_index[1]])
+                            new_value = " ".join(answer[find_index[0] + 1: find_index[1]])
                             row_index = answer[find_index[1]]
-                            row_value = " ".join(answer[find_index[1]+1:])
+                            row_value = " ".join(answer[find_index[1] + 1:])
 
-                            # Convert users input to match table colums in database
-                            d.update_value(row=row.lower(), new_value=new_value, row_index=row_index.lower(), row_value=row_value)
+                            # Convert users input to match table columns in database
+                            d.update_value(row=row.lower(), new_value=new_value, row_index=row_index.lower(),
+                                           row_value=row_value)
 
                             await typing_action(chat_id, period=1)
                             await conv.send_message("Modification effectué avec succès...")
@@ -211,25 +224,20 @@ async def update_table(chat_id, tips):
 
                         except IndexError:
                             column = " - ".join(column)
-                            await conv.send_message(f"Veuillez suivre le format correct et verifiez l'orthographe des colonnes. Voici la liste des colonnes:\n\n{column}")
+                            await conv.send_message(f"{get_tip('INDEX_ERROR')}:\n\n{column}")
 
-                            logger.info(f"---> LA VALEUR ENTRÉ NE CORRESPOND PAS AVEC LE FORMAT DONNÉ.")
+                            logger.info(f"---> {get_tip('FORMAT_ERROR')}")
 
                     else:
                         await conv.send_message(get_tip("END"))
                         continue_conv = False
 
             except asyncio.TimeoutError:
-                await conv.send_message("Conversation terminée 🔚!\n\nPour afficher les options appuyez sur **/options**.")
+                await conv.send_message(get_tip("TIMEOUT_ERROR"))
 
 
     except AlreadyInConversationError:
-        await client.send_message(chat_id, "Veuillez terminer la conversation avant de choisir d'autre options.")  # type: ignore
-
-
-
-
-
+        await client.send_message(chat_id, get_tip("CONVERSATION_ERROR"))  # type: ignore
 
 
 if __name__ == "__main__":
