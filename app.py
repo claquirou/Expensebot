@@ -10,7 +10,7 @@ import init_db
 from db import Databases
 from credential import ADMIN_ID, API_ID, API_HASH, TOKEN
 
-logging.basicConfig(filename="file.log", level=logging.DEBUG,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(name)s- %(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -119,12 +119,12 @@ async def user_conversation(chat_id, tips, earn):
                         hour = strftime("%H:%M:%S", gmtime())
 
                         if earn == "month":
-                            response = str(response.raw_text)
-                            if response.lower() in MONTH:
-                                init_db.add_month(response.lower())
+                            user_entry = str(response.raw_text)
+                            if user_entry.lower() in MONTH:
+                                init_db.add_month(user_entry.lower())
                                 await typing_action(chat_id)
-                                await conv.send_message(f"{get_tip('NEW_MONTH')} {response.upper()}.")
-                                logger.info(f"-----> NOUVEAU MOIS AJOUTÉ: {response.upper()}")
+                                await conv.send_message(f"{get_tip('NEW_MONTH')} {user_entry.upper()}.")
+                                logger.info(f"-----> NOUVEAU MOIS AJOUTÉ: {user_entry.upper()}")
                                 return
 
                             else:
@@ -152,7 +152,7 @@ async def user_conversation(chat_id, tips, earn):
 
 
 async def add_data(conv, day, hour, response, save=False):
-    msg = response.split()
+    msg = str(response.raw_text).split()
     amount = msg[0]
     description = " ".join(msg[1:]).upper()
 

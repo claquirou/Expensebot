@@ -1,6 +1,5 @@
 import os
 
-
 ADMIN_ID = 1816182296
 
 API_ID = int(os.environ["API_ID"])
