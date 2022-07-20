@@ -7,9 +7,13 @@
 
     "FORMAT": "**Format incorrect !**\nVous avez fait une erreur, écrivez le montant suivi du motif de somme.\n\n__Exemple: 400000 Retour sur investissement__",
 
-    "UPDATE": "Pour modifier une valeur, suivez l'exemple donnée et faite attention à votre orthographe.",
+    "UPDATE": "Pour modifier une valeur, suivez l'exemple donnée et faite attention à votre orthographe.\n\n__Exemple: revenus 260000 description retrait",
 
-    "NEW_MONTH": "Vos revenus et dépenses seront enregistrés pour le mois\n\nPour afficher les options appuyez sur **/options**.",
+    "DELETE": "Pour supprimer une valeur, suivez l'exemple donnée et faite attention à votre orthographe.\n\n__Exemple: description Retrait DJAMO__",
+
+    "NEW_MONTH": "Vos revenus et dépenses seront enregistrés pour le mois",
+
+    "OPTION_MSG": "\n\nPour afficher les options appuyez sur **/options**.",
 
 
 

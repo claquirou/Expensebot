@@ -10,16 +10,15 @@ import init_db
 from db import Databases
 from credential import ADMIN_ID, API_ID, API_HASH, TOKEN
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(filename="file.log", level=logging.DEBUG,
                     format='%(name)s- %(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 client = TelegramClient(None, int(API_ID), API_HASH).start(bot_token=TOKEN)  # type: ignore
 
-
-MONTH = ["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre"]
-
+MONTH = ["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre",
+         "decembre"]
 
 
 def get_tip(tips):
@@ -55,54 +54,54 @@ async def option(event):
     await client.send_message(ADMIN_ID, "Choississez une option:", buttons=keyboard)
 
 
-@client.on(events.NewMessage(pattern="/newMonth"))
+@client.on(events.NewMessage(pattern="/month"))
 async def new_month(event):
     if event.chat_id != ADMIN_ID:
         return
 
-    await user_conversation(chat_id=event.chat_id, tips="Ecrivez le nom du nouveau mois.", earn="month")
+    keyboard = [
+        [Button.inline("MOIS ACTUEL", b"6"),
+         Button.inline("NOUVEAU MOIS", b"7")]
+    ]
 
-
-async def totals(chat_id, event):
-    if chat_id != ADMIN_ID:
-        return
-
-    d = Databases()
-    await typing_action(chat_id)
-
-    revenu = "REVENUS:      __{:,} XOF__".format(d.get_income_expense('revenus'))
-    depense = "DEPENSES:    __{:,} XOF__".format(d.get_income_expense('depenses'))
-    solde = "SOLDE:       __{:,} XOF__".format(d.last_value('balance'))
-
-    await event.respond(f"RECAPITULATIF\n\n{revenu}\n{depense}\n{solde}")
-    logger.info(f"----> LE TOTAL DES DONNÉS A ÉTÉ DEMANDÉ")
+    await client.send_message(ADMIN_ID, "Choississez une option:", buttons=keyboard)
 
 
 @client.on(events.CallbackQuery())
-async def button(event):
+async def _option_button(event):
     if event.data == b"1":
         await event.delete()
-        await user_conversation(chat_id=ADMIN_ID, tips=get_tip("REVENU"), earn="yes")
+        await _user_conversation(chat_id=ADMIN_ID, tips=get_tip("REVENU"), arg="income")
 
     elif event.data == b"2":
         await event.delete()
-        await user_conversation(chat_id=ADMIN_ID, tips=get_tip("DEPENSE"), earn="no")
+        await _user_conversation(chat_id=ADMIN_ID, tips=get_tip("DEPENSE"), arg="expense")
 
     elif event.data == b"3":
         await event.delete()
-        await update_table(chat_id=ADMIN_ID, tips=get_tip("UPDATE"))
+        await _user_conversation(chat_id=ADMIN_ID, tips=get_tip("UPDATE"), arg="update")
 
     elif event.data == b"4":
-        pass
+        await event.delete()
+        await _user_conversation(chat_id=ADMIN_ID, tips=get_tip("DELETE"), arg="delete")
 
     elif event.data == b"5":
         await event.delete()
-        await totals(chat_id=ADMIN_ID, event=event)
+        await get_totals(chat_id=ADMIN_ID, event=event)
+
+    if event.data == b"6":
+        # await event.delete()
+        # await _user_conversation(chat_id=event.chat_id, tips="Ecrivez le nom du mois dont vous souhaitez avoir les donnés.", arg="setMonth")
+        pass
+
+    elif event.data == b"7":
+        await event.delete()
+        await _user_conversation(chat_id=event.chat_id, tips="Ecrivez le nom du nouveau mois.", arg="addMonth")
 
     raise events.StopPropagation
 
 
-async def user_conversation(chat_id, tips, earn):
+async def _user_conversation(chat_id: int, tips: str, arg: str):
     try:
         async with client.conversation(chat_id, timeout=60) as conv:
             await conv.send_message(tips, parse_mode='md')
@@ -118,26 +117,28 @@ async def user_conversation(chat_id, tips, earn):
                         day = strftime("%d-%m-%Y", gmtime())
                         hour = strftime("%H:%M:%S", gmtime())
 
-                        if earn == "month":
-                            user_entry = str(response.raw_text)
-                            if user_entry.lower() in MONTH:
-                                init_db.add_month(user_entry.lower())
-                                await typing_action(chat_id)
-                                await conv.send_message(f"{get_tip('NEW_MONTH')} {user_entry.upper()}.")
-                                logger.info(f"-----> NOUVEAU MOIS AJOUTÉ: {user_entry.upper()}")
-                                return
+                        if arg == "addMonth":
+                            await add_new_month(chat_id=chat_id, response=response, conv=conv)
+                            return
 
-                            else:
-                                await typing_action(chat_id)
-                                await conv.send_message("Ecrivez le nom du mois correct svp...")
+                        elif arg == "setMonth":
+                            pass
 
-                        elif earn == "yes":
+                        elif arg == "income":
                             await typing_action(chat_id)
-                            await add_data(conv, day, hour, response, save=True)
+                            await add_data(conv=conv, day=day, hour=hour, response=response, save=True)
+
+                        elif arg == "update":
+                            await typing_action(chat_id, period=1)
+                            await update_table(response=response, conv=conv, delete=False)
+
+                        elif arg == "delete":
+                            await typing_action(chat_id, period=1)
+                            await update_table(response=response, conv=conv, delete=True)
 
                         else:
                             await typing_action(chat_id)
-                            await add_data(conv, day, hour, response)
+                            await add_data(conv=conv, day=day, hour=hour, response=response, save=False)
 
                     else:
                         await conv.send_message(get_tip("END"))
@@ -151,7 +152,22 @@ async def user_conversation(chat_id, tips, earn):
         await client.send_message(chat_id, get_tip("CONVERSATION_ERROR"))  # type: ignore
 
 
-async def add_data(conv, day, hour, response, save=False):
+async def get_totals(chat_id, event):
+    if chat_id != ADMIN_ID:
+        return
+
+    d = Databases()
+    await typing_action(chat_id)
+
+    revenu = "REVENUS:      __{:,} XOF__".format(d.get_income_expense('revenus'))
+    depense = "DEPENSES:    __{:,} XOF__".format(d.get_income_expense('depenses'))
+    solde = "SOLDE:       __{:,} XOF__".format(d.last_value('balance'))
+
+    await event.respond(f"RECAPITULATIF\n\n{revenu}\n{depense}\n{solde}")
+    logger.info(f"----> LE TOTAL DES DONNÉS A ÉTÉ DEMANDÉ")
+
+
+async def add_data(conv, day, hour, response, save: bool):
     msg = str(response.raw_text).split()
     amount = msg[0]
     description = " ".join(msg[1:]).upper()
@@ -183,61 +199,65 @@ async def add_data(conv, day, hour, response, save=False):
         logger.info(f"---> {get_tip('FORMAT_ERROR')}")
 
 
-async def update_table(chat_id, tips):
-    if chat_id != ADMIN_ID:
-        return
+async def update_table(response, conv, delete: bool):
+    d = Databases()
+    column = d.column
+    answer = response.raw_text.split()
 
     try:
-        async with client.conversation(chat_id, timeout=125) as conv:
-            await conv.send_message(tips, parse_mode='md')
+        if delete:
+            row = answer[0]
+            value = " ".join(answer[1:])
 
             try:
-                continue_conv = True
+                # Convert users input to match table columns in database and delete
+                d.delete_value(row=row.lower(), value=value)
+                await conv.send_message("Suppression effectué avec succès...")
+                logger.info(f"----------> SUPPRESSION: {row.lower()}  *** {value} *** .")
 
-                while continue_conv:
-                    response = conv.get_response()
-                    response = await response
+            except ValueError:
+                await conv.send_message("Pour modifier une valeur, vous devez forcement passer par la description\nVeuillez suivre l'exemple....")
 
-                    if response.raw_text != "/end":
-                        d = Databases()
-                        column = d.column
-                        answer = response.raw_text.split()
+        else:
+            # Get all columns index to update
+            find_index = [answer.index(w) for w in answer if w.lower() in column]
 
-                        try:
-                            # Get all columns index to update
-                            find_index = [answer.index(w) for w in answer if w.lower() in column]
+            # Get the text of the value to be updated
+            row = answer[find_index[0]]
+            new_value = " ".join(answer[find_index[0] + 1: find_index[1]])
+            row_index = answer[find_index[1]]
+            row_value = " ".join(answer[find_index[1] + 1:])
 
-                            # Get the text of the value to be updated
-                            row = answer[find_index[0]]
-                            new_value = " ".join(answer[find_index[0] + 1: find_index[1]])
-                            row_index = answer[find_index[1]]
-                            row_value = " ".join(answer[find_index[1] + 1:])
+            # Convert users input to match table columns in database and update
+            d.update_value(row=row.lower(), new_value=new_value, row_index=row_index.lower(),
+                           row_value=row_value)
 
-                            # Convert users input to match table columns in database
-                            d.update_value(row=row.lower(), new_value=new_value, row_index=row_index.lower(),
-                                           row_value=row_value)
-
-                            await typing_action(chat_id, period=1)
-                            await conv.send_message("Modification effectué avec succès...")
-
-                            logger.info(f"----------> MODIFICATION: {row.lower()} *** {new_value} *** {row_index.lower()} *** {row_value} *** .")
-
-                        except IndexError:
-                            column = " - ".join(column)
-                            await conv.send_message(f"{get_tip('INDEX_ERROR')}:\n\n{column}")
-
-                            logger.info(f"---> {get_tip('FORMAT_ERROR')}")
-
-                    else:
-                        await conv.send_message(get_tip("END"))
-                        continue_conv = False
-
-            except asyncio.TimeoutError:
-                await conv.send_message(get_tip("TIMEOUT_ERROR"))
+            await conv.send_message("Modification effectué avec succès...")
+            logger.info(f"----------> MODIFICATION: {row.lower()} *** {new_value} *** {row_index.lower()} *** {row_value} *** .")
 
 
-    except AlreadyInConversationError:
-        await client.send_message(chat_id, get_tip("CONVERSATION_ERROR"))  # type: ignore
+    except IndexError:
+        column = " - ".join(column)
+        await conv.send_message(f"{get_tip('INDEX_ERROR')}:\n\n{column}")
+
+        logger.info(f"---> {get_tip('FORMAT_ERROR')}")
+
+
+async def add_new_month(chat_id, response, conv):
+    user_entry = str(response.raw_text)
+    if user_entry.lower() in MONTH:
+        init_db.add_month(user_entry.lower())
+        await typing_action(chat_id)
+        await conv.send_message(f"{get_tip('NEW_MONTH')} __{user_entry.upper()}__. {get_tip('OPTION_MSG')}")
+        logger.info(f"-----> NOUVEAU MOIS AJOUTÉ: {user_entry.upper()}")
+
+    else:
+        await typing_action(chat_id)
+        await conv.send_message("Ecrivez le nom du mois correct svp...")
+
+
+async def set_month():
+    pass
 
 
 if __name__ == "__main__":

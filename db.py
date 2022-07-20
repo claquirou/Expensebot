@@ -1,4 +1,6 @@
 import json
+import os
+
 import psycopg2
 import psycopg2.errors
 
@@ -10,6 +12,7 @@ def last_month():
         data = json.load(f)
 
     return data[-1]
+
 
 class Databases:
     def __init__(self):
@@ -48,17 +51,26 @@ class Databases:
         if row.lower() == "description":
             new_value = f"{new_value.upper()} --> UPDATED"
 
-        self.cursor.execute(f"UPDATE {last_month()} SET {row.lower()} = '{new_value}' WHERE {row_index.lower()} = '{row_value}'")
+        elif row_index.lower() == "description":
+            row_value = row_value.upper()
 
+        self.cursor.execute(f"UPDATE {last_month()} SET {row.lower()} = '{new_value}' WHERE {row_index.lower()} = '{row_value}'")
         self.commit_data()
 
+    def delete_value(self, row: str, value: str):
+        if row.lower() == "description":
+            self.cursor.execute(f"DELETE FROM {last_month()} WHERE {row.lower()} = '{value}'")
+            self.commit_data()
+        else:
+            raise ValueError("Name of column not match")
+
     def last_value(self, row: str):
-        self.cursor.execute(f"SELECT {row.lower()} from {last_month()}")
+        self.cursor.execute(f"SELECT {row.lower()} FROM {last_month()}")
         last = [i[0] for i in self.cursor.fetchall()]
         return last[-1]
 
     def get_income_expense(self, row: str):
-        self.cursor.execute(f"SELECT {row.lower()} from {last_month()}")
+        self.cursor.execute(f"SELECT {row.lower()} FROM {last_month()}")
         records = self.cursor.fetchall()
         total = sum([int(i[0]) for i in records if i[0] is not None])
 
