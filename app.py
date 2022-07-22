@@ -10,7 +10,7 @@ import init_db
 from db import Databases
 from credential import ADMIN_ID, API_ID, API_HASH, TOKEN
 
-logging.basicConfig(filename="file.log", level=logging.DEBUG,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(name)s- %(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -40,9 +40,6 @@ async def start(event):
 
 @client.on(events.NewMessage(pattern="/options"))
 async def option(event):
-    if event.chat_id != ADMIN_ID:
-        return
-
     keyboard = [
         [Button.inline("REVENUS 💵", b"1"),
          Button.inline("DEPENSES 🛍", b"2")],
@@ -56,9 +53,6 @@ async def option(event):
 
 @client.on(events.NewMessage(pattern="/month"))
 async def new_month(event):
-    if event.chat_id != ADMIN_ID:
-        return
-
     keyboard = [
         [Button.inline("MOIS ACTUEL", b"6"),
          Button.inline("NOUVEAU MOIS", b"7")]
@@ -153,18 +147,15 @@ async def _user_conversation(chat_id: int, tips: str, arg: str):
 
 
 async def get_totals(chat_id, event):
-    if chat_id != ADMIN_ID:
-        return
-
     d = Databases()
+    
     await typing_action(chat_id)
-
     revenu = "REVENUS:      __{:,} XOF__".format(d.get_income_expense('revenus'))
     depense = "DEPENSES:    __{:,} XOF__".format(d.get_income_expense('depenses'))
     solde = "SOLDE:       __{:,} XOF__".format(d.last_value('balance'))
 
     await event.respond(f"RECAPITULATIF\n\n{revenu}\n{depense}\n{solde}")
-    logger.info(f"----> LE TOTAL DES DONNÉS A ÉTÉ DEMANDÉ")
+    logger.info(f"----> LE TOTAL DES DONNÉS A ÉTÉ DEMANDÉ ET VALEUR = 0 EST SUPPRIMEE")
 
 
 async def add_data(conv, day, hour, response, save: bool):
@@ -235,7 +226,6 @@ async def update_table(response, conv, delete: bool):
             await conv.send_message("Modification effectué avec succès...")
             logger.info(f"----------> MODIFICATION: {row.lower()} *** {new_value} *** {row_index.lower()} *** {row_value} *** .")
 
-
     except IndexError:
         column = " - ".join(column)
         await conv.send_message(f"{get_tip('INDEX_ERROR')}:\n\n{column}")
@@ -244,9 +234,13 @@ async def update_table(response, conv, delete: bool):
 
 
 async def add_new_month(chat_id, response, conv):
+    d = Databases()
     user_entry = str(response.raw_text)
+
     if user_entry.lower() in MONTH:
         init_db.add_month(user_entry.lower())
+        # Supprimer la valeur 0 qui à été initialisé.
+        d.delete_value("heure", "0")
         await typing_action(chat_id)
         await conv.send_message(f"{get_tip('NEW_MONTH')} __{user_entry.upper()}__. {get_tip('OPTION_MSG')}")
         logger.info(f"-----> NOUVEAU MOIS AJOUTÉ: {user_entry.upper()}")
