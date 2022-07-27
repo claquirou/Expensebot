@@ -10,7 +10,7 @@ import init_db
 from db import Databases, last_month
 from credential import ADMIN_ID, API_ID, API_HASH, TOKEN
 
-logging.basicConfig(filename="file.log", level=logging.DEBUG,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(name)s- %(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
