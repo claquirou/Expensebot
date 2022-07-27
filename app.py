@@ -7,10 +7,10 @@ from telethon import Button, TelegramClient, events
 from telethon.errors import AlreadyInConversationError
 
 import init_db
-from db import Databases
+from db import Databases, last_month
 from credential import ADMIN_ID, API_ID, API_HASH, TOKEN
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(filename="file.log", level=logging.DEBUG,
                     format='%(name)s- %(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -149,14 +149,17 @@ async def _user_conversation(chat_id: int, tips: str, arg: str):
 async def get_totals(chat_id, event):
     d = Databases()
     
-    await typing_action(chat_id)
-    revenu = "REVENUS:      __{:,} XOF__".format(d.get_income_expense('revenus'))
-    depense = "DEPENSES:    __{:,} XOF__".format(d.get_income_expense('depenses'))
-    solde = "SOLDE:       __{:,} XOF__".format(d.last_value('balance'))
+    try :
+        await typing_action(chat_id)
+        revenu = "REVENUS:      __{:,} XOF__".format(d.get_income_expense('revenus'))
+        depense = "DEPENSES:    __{:,} XOF__".format(d.get_income_expense('depenses'))
+        solde = "SOLDE:       __{:,} XOF__".format(d.last_value('balance'))
 
-    await event.respond(f"RECAPITULATIF\n\n{revenu}\n{depense}\n{solde}")
-    logger.info(f"----> LE TOTAL DES DONNÉS A ÉTÉ DEMANDÉ ET VALEUR = 0 EST SUPPRIMEE")
+        await event.respond(f"RECAPITULATIF DU MOIS __{last_month().upper()}__\n\n{revenu}\n{depense}\n{solde}")
+        logger.info(f"----> LE TOTAL DES DONNÉS A ÉTÉ DEMANDÉ ET VALEUR = 0 EST SUPPRIMEE")
 
+    except IndexError:
+        await event.respond(f"Aucune donnée n'a été enregistré pour le mois {last_month()}")
 
 async def add_data(conv, day, hour, response, save: bool):
     msg = str(response.raw_text).split()
@@ -167,20 +170,31 @@ async def add_data(conv, day, hour, response, save: bool):
         d = Databases()
         # Forcer l'utilisateur à écrire plus de 3 mots.
         if description.count("") > 3:
+            
+            try:
+                # if save --> True alors l'utilisateur enregistre ses revenus.
+                if save:
+                    balance = int(amount) + d.last_value('balance')
+                    d.save_data(date=day, hour=hour, income=amount, description=description, balance=balance)
 
-            # if save --> True alors l'utilisateur enregistre ses revenus.
-            if save:
-                balance = int(amount) + d.last_value('balance')
-                d.save_data(date=day, hour=hour, income=amount, description=description, balance=balance)
+                    await conv.send_message(f"Revenu enregistré 📝.")
+                    logger.info(f"----------> MONTANT AJOUTÉ: {amount} XOF | MOTIF: {description}")
+                else:
+                    balance = d.last_value('balance') - int(amount)
+                    d.save_data(date=day, hour=hour, expense=amount, description=description, balance=balance)
 
-                await conv.send_message(f"Revenu enregistré 📝.")
-                logger.info(f"----------> MONTANT AJOUTÉ: {amount} XOF | MOTIF: {description}")
-            else:
-                balance = d.last_value('balance') - int(amount)
-                d.save_data(date=day, hour=hour, expense=amount, description=description, balance=balance)
-
-                await conv.send_message("Votre dépense a été enregistré 📝.")
-                logger.info(f"----------> MONTANT DEPENSÉ: {amount} XOF | MOTIF: {description}")
+                    await conv.send_message("Votre dépense a été enregistré 📝.")
+                    logger.info(f"----------> MONTANT DEPENSÉ: {amount} XOF | MOTIF: {description}")
+            
+            except IndexError:
+                if save:
+                    d.save_data(date=day, hour=hour, income=amount, description=description, balance=int(amount))
+                    
+                    await conv.send_message(f"Revenu enregistré 📝.")
+                    logger.info(f"----------> MONTANT AJOUTÉ: {amount} XOF | MOTIF: {description}")
+                else:
+                    await conv.send_message(f"Vous devez ajouter un revenu avant d'ajouter des dépenses.{get_tip('OPTION_MSG')}")
+                    return
 
         else:
             await conv.send_message(get_tip("FORMAT"))
