@@ -70,7 +70,7 @@ class Databases:
     def delete_value(self, row: str, value: str):
         if row.lower() == "description" or "heure":
             # Une petite erreur que je dois corrigé ici.
-            self.cursor.execute(f"DELETE FROM {last_month()} WHERE {row.lower()} = '{value}'")
+            self.cursor.execute(f"DELETE FROM {last_month()} WHERE {row.lower()} = '{value.upper()}'")
             self.commit_data()
         else:
             raise ValueError("Name of column not match")
